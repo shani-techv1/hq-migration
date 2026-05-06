@@ -2,22 +2,12 @@ import { useEffect, useState } from "react";
 import { useLoaderData } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
-import { setupVolumeDiscounts } from "../discountSetup.server";
 
 
 const BACKEND_URL = "https://highquality.allgovjobs.com/backend";
 
 export const loader = async ({ request }) => {
-  const { session, admin } = await authenticate.admin(request);
-
-  // Auto-create volume discount tiers for this store (skips existing ones)
-  const carrierProductGid = process.env.CUSTOM_PRODUCT_ID;
-  if (admin && carrierProductGid) {
-    setupVolumeDiscounts(admin, carrierProductGid).catch((err) =>
-      console.error("[app._index] Auto discount setup failed:", err),
-    );
-  }
-
+  const { session } = await authenticate.admin(request);
   return { shop: session?.shop || null };
 };
 
