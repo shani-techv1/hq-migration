@@ -106,9 +106,39 @@
   }
 </style>
 
+<!-- Open the TCP/TLS connection to the asset CDN early, in parallel with HTML parse -->
+<link rel="preconnect" href="https://shopify-ext.vercel.app" crossorigin>
+<link rel="dns-prefetch" href="https://shopify-ext.vercel.app">
+
+{%- comment -%}
+  Preload the 6 garment WebPs that Konva will request as soon as the editor mounts.
+  The browser starts fetching during HTML parse, in parallel with the JS bundle download,
+  so by the time React renders the previews the images are already in the HTTP cache.
+  Route-aware so /uv*-routes preload UV-DTF assets instead of cloth assets.
+{%- endcomment -%}
+{%- assign cdn = 'https://shopify-ext.vercel.app/assets' -%}
+{%- assign p = request.path | downcase -%}
+{%- if p contains 'uv' -%}
+  <link rel="preload" as="image" href="{{ cdn }}/6-products/bottle.webp" type="image/webp" fetchpriority="high" crossorigin>
+  <link rel="preload" as="image" href="{{ cdn }}/6-products/mug.webp" type="image/webp" fetchpriority="high" crossorigin>
+  <link rel="preload" as="image" href="{{ cdn }}/6-products/tumbler.webp" type="image/webp" crossorigin>
+  <link rel="preload" as="image" href="{{ cdn }}/6-products/laptop.webp" type="image/webp" crossorigin>
+  <link rel="preload" as="image" href="{{ cdn }}/6-products/car-back.webp" type="image/webp" crossorigin>
+  <link rel="preload" as="image" href="{{ cdn }}/6-products/keychain.webp" type="image/webp" crossorigin>
+{%- else -%}
+  <link rel="preload" as="image" href="{{ cdn }}/6-cloths/full-front.webp" type="image/webp" fetchpriority="high" crossorigin>
+  <link rel="preload" as="image" href="{{ cdn }}/6-cloths/Hoodie_White.webp" type="image/webp" fetchpriority="high" crossorigin>
+  <link rel="preload" as="image" href="{{ cdn }}/6-cloths/polo-tshirt.webp" type="image/webp" crossorigin>
+  <link rel="preload" as="image" href="{{ cdn }}/6-cloths/Cap_White.webp" type="image/webp" crossorigin>
+  <link rel="preload" as="image" href="{{ cdn }}/6-cloths/Apron_White.webp" type="image/webp" crossorigin>
+  <link rel="preload" as="image" href="{{ cdn }}/6-cloths/Tote_White.png" as="image" crossorigin>
+{%- endif -%}
+
 <!-- Load React app from external CDN (Shopify has 10KB limit for inline JS) -->
+<!-- Module script: required for the chunked build (Konva/Fabric ship as separate chunks). -->
+<!-- Rolling back: drop type="module" and add `defer` if the Vercel build is reverted to iife. -->
 <link rel="stylesheet" href="{{ block.settings.editor_css_url }}">
-<script src="{{ block.settings.editor_js_url }}" defer></script>
+<script type="module" src="{{ block.settings.editor_js_url }}"></script>
 
 {% schema %}
 {
