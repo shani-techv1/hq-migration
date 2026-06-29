@@ -41,7 +41,7 @@
 import { authenticate } from "../shopify.server";
 import {
   calculateUnitPrice,
-  getDiscountRateBySubtotal,
+  // getDiscountRateBySubtotal, // re-enable for volume discount (see DISABLED block below)
   getOrCreateVariant,
 } from "../variantPricing.server";
 
@@ -226,25 +226,31 @@ export const action = async ({ request }) => {
       parseInt(totalQty, 10) || normalizedLines.reduce((sum, line) => sum + line.quantity, 0),
     );
 
-    // Compute raw (undiscounted) subtotal to determine the volume discount tier
-    const rawSubtotal = normalizedLines.reduce(
-      (sum, line) =>
-        sum + calculateUnitPrice(line.width, line.height, line.preCut, 0) * line.quantity,
-      0,
-    );
-    const discountRate = getDiscountRateBySubtotal(rawSubtotal);
+    // ── Volume discount (DISABLED) ────────────────────────────────────────────
+    // Cart/checkout is charged the ACTUAL price (no discount). The storefront
+    // editor may still DISPLAY a discounted price, but the amount sent to the
+    // cart is the full price. The volume-discount logic is kept (commented out)
+    // so it can be re-enabled later.
+    // To re-enable: uncomment the block below + the discount properties further
+    // down, uncomment the getDiscountRateBySubtotal import above, and pass
+    // `discountRate` into calculateUnitPrice() instead of 0.
+    //
+    // const rawSubtotal = normalizedLines.reduce(
+    //   (sum, line) =>
+    //     sum + calculateUnitPrice(line.width, line.height, line.preCut, 0) * line.quantity,
+    //   0,
+    // );
+    // const discountRate = getDiscountRateBySubtotal(rawSubtotal);
 
     const items = [];
     for (const line of normalizedLines) {
-      const originalUnitPrice = calculateUnitPrice(line.width, line.height, line.preCut, 0);
-      const unitPrice = calculateUnitPrice(
-        line.width,
-        line.height,
-        line.preCut,
-        discountRate,
-      );
+      // Charge the actual price — no volume discount is applied at checkout.
+      const unitPrice = calculateUnitPrice(line.width, line.height, line.preCut, 0);
+      // To re-enable the discount, compute both prices instead of the line above:
+      // const originalUnitPrice = calculateUnitPrice(line.width, line.height, line.preCut, 0);
+      // const unitPrice = calculateUnitPrice(line.width, line.height, line.preCut, discountRate);
       console.log(
-        `[api.cart-add] line original=${originalUnitPrice} discounted=${unitPrice} discountRate=${discountRate} width=${line.width} height=${line.height} preCut=${line.preCut} lineQty=${line.quantity} totalQty=${globalQty} subtotal=${rawSubtotal.toFixed(2)} placement=${line.placementId || "n/a"} size=${line.sizeId || "n/a"}`,
+        `[api.cart-add] line price=${unitPrice} width=${line.width} height=${line.height} preCut=${line.preCut} lineQty=${line.quantity} totalQty=${globalQty} placement=${line.placementId || "n/a"} size=${line.sizeId || "n/a"}`,
       );
 
       let numericId;
@@ -270,12 +276,14 @@ export const action = async ({ request }) => {
         Dimensions: `${line.width}" x ${line.height}"`,
         PreCut: line.preCut ? "Yes" : "No",
       };
-      if (discountRate > 0) {
-        const savingsPerUnit = (originalUnitPrice - unitPrice).toFixed(2);
-        properties["Original Price"] = `$${originalUnitPrice.toFixed(2)}`;
-        properties["Volume Discount"] = `${(discountRate * 100).toFixed(0)}% off`;
-        properties["You Save"] = `$${savingsPerUnit}/ea`;
-      }
+      // Volume discount display (DISABLED — see note above). Re-enable together
+      // with the discountRate/originalUnitPrice block:
+      // if (discountRate > 0) {
+      //   const savingsPerUnit = (originalUnitPrice - unitPrice).toFixed(2);
+      //   properties["Original Price"] = `$${originalUnitPrice.toFixed(2)}`;
+      //   properties["Volume Discount"] = `${(discountRate * 100).toFixed(0)}% off`;
+      //   properties["You Save"] = `$${savingsPerUnit}/ea`;
+      // }
       if (line.placementLabel) properties.Placement = line.placementLabel;
       if (line.sizeLabel) properties.Size = line.sizeLabel;
       if (!line.sizeLabel) properties.Size = "Custom";
