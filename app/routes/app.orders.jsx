@@ -156,6 +156,17 @@ const PAGE_CSS = `
   flex-wrap: wrap;
 }
 .ots-banner-error { background: #fee2e2; border: 1px solid #fca5a5; color: #991b1b; }
+.ots-banner-dismiss {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  color: inherit;
+  opacity: 0.7;
+  padding: 0 4px;
+}
 .ots-banner-warn { background: #fef3c7; border: 1px solid #fcd34d; color: #92400e; }
 .ots-banner-info { background: #eef4ff; border: 1px solid #b9cdf5; color: #1f3f80; }
 
@@ -297,6 +308,8 @@ function sheetSize(sheet) {
 export default function OrdersPage() {
   const fetcher = useFetcher();
   const [orderIdInput, setOrderIdInput] = useState("");
+  const [downloading, setDownloading] = useState(null);
+  const [downloadError, setDownloadError] = useState(null);
 
   const isGenerating = fetcher.state !== "idle";
   const result = fetcher.data;
@@ -321,21 +334,57 @@ export default function OrdersPage() {
     fetcher.submit(fd, { method: "post" });
   };
 
-  // Downloads are triggered one at a time; browsers drop simultaneous ones.
-  const downloadAll = (sheets) => {
-    sheets
-      .map(downloadHref)
-      .filter(Boolean)
-      .forEach((href, i) => {
-        setTimeout(() => {
-          const a = document.createElement("a");
-          a.href = href;
-          a.download = "";
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-        }, i * 400);
-      });
+  /**
+   * Fetch the sheet, then save the blob.
+   *
+   * A plain <a download> can't be used here: it navigates, and a navigation
+   * carries no Shopify session token, so the loader answers with the App Bridge
+   * auth bounce page and the browser saves that HTML instead of the image.
+   * App Bridge patches fetch to attach the token on same-origin requests.
+   */
+  const downloadSheet = async (sheet) => {
+    const href = downloadHref(sheet);
+    if (!href) return;
+
+    const name = sheet.pngFileName || "transfer-sheet.png";
+    setDownloading(name);
+    setDownloadError(null);
+
+    try {
+      const res = await fetch(href);
+      if (!res.ok) {
+        throw new Error(`Download failed (${res.status}).`);
+      }
+
+      // An HTML body here means the session token was rejected — catch it
+      // rather than handing the user a .html file named like an image.
+      const contentType = res.headers.get("Content-Type") || "";
+      if (!contentType.startsWith("image/")) {
+        throw new Error(
+          "Session expired. Reload the page and try the download again.",
+        );
+      }
+
+      const blobUrl = URL.createObjectURL(await res.blob());
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      setDownloadError(err.message || "Download failed.");
+    } finally {
+      setDownloading(null);
+    }
+  };
+
+  // Sequential — the browser drops downloads fired simultaneously.
+  const downloadAll = async (sheets) => {
+    for (const sheet of sheets) {
+      await downloadSheet(sheet);
+    }
   };
 
   return (
@@ -416,6 +465,21 @@ export default function OrdersPage() {
               </div>
             )}
 
+            {downloadError && (
+              <div className="ots-banner ots-banner-error">
+                <span style={{ fontWeight: 700 }}>Download failed</span>
+                <span>{downloadError}</span>
+                <button
+                  type="button"
+                  onClick={() => setDownloadError(null)}
+                  className="ots-banner-dismiss"
+                  aria-label="Dismiss"
+                >
+                  ×
+                </button>
+              </div>
+            )}
+
             {!isGenerating && orders.length > 0 && (
               <>
                 {summary.ready === 0 ? (
@@ -471,6 +535,7 @@ export default function OrdersPage() {
                                 type="button"
                                 className="ots-btn ots-btn-small ots-btn-secondary"
                                 onClick={() => downloadAll(sheets)}
+                                disabled={downloading !== null}
                               >
                                 Download all ({sheets.length})
                               </button>
@@ -547,13 +612,16 @@ export default function OrdersPage() {
 
                               <div className="ots-sheet-actions">
                                 {href ? (
-                                  <a
-                                    href={href}
-                                    download
+                                  <button
+                                    type="button"
+                                    onClick={() => downloadSheet(sheet)}
+                                    disabled={downloading !== null}
                                     className="ots-btn ots-btn-small ots-btn-primary"
                                   >
-                                    Download
-                                  </a>
+                                    {downloading === sheet.pngFileName
+                                      ? "Downloading…"
+                                      : "Download"}
+                                  </button>
                                 ) : (
                                   <span className="ots-badge ots-badge-warn">
                                     Unavailable
