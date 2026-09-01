@@ -627,16 +627,6 @@ export default function OrdersPage() {
                                     Unavailable
                                   </span>
                                 )}
-                                {sheet.downloadUrl && (
-                                  <a
-                                    href={sheet.downloadUrl}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="ots-btn ots-btn-small ots-btn-secondary"
-                                  >
-                                    Preview
-                                  </a>
-                                )}
                               </div>
                             </div>
                           );
