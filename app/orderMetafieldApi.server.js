@@ -53,12 +53,26 @@ export async function generateTransferSheetsByProduct({ shop, orderIds }) {
 
 /**
  * GET /api/download-transfer-image - Stream a generated transfer sheet by filename.
- * The filename comes from `pngFileName` on a sheet returned by the call above.
+ * The filename comes from `fileName` on a transfer sheet or garment gang sheet
+ * returned by the call above.
  * @param {string} file
  * @returns {Promise<Response>}
  */
 export async function getTransferSheetImage(file) {
   const url = new URL(`${API_BASE}/api/download-transfer-image`);
+  url.searchParams.set("file", file);
+  return fetch(url.toString());
+}
+
+/**
+ * GET /api/download-garment-pdf - Stream a generated garment print sheet PDF by filename.
+ * The filename comes from `garment.pdf.fileName` on an order returned by
+ * generateTransferSheetsByProduct.
+ * @param {string} file
+ * @returns {Promise<Response>}
+ */
+export async function getGarmentPdf(file) {
+  const url = new URL(`${API_BASE}/api/download-garment-pdf`);
   url.searchParams.set("file", file);
   return fetch(url.toString());
 }

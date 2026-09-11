@@ -278,6 +278,15 @@ const PAGE_CSS = `
 }
 @keyframes ots-spin { to { transform: rotate(360deg); } }
 
+.ots-group-title {
+  margin: 18px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6d7175;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 @media (max-width: 720px) {
   .ots-card { padding: 16px; }
   .ots-input { max-width: 100%; }
@@ -286,15 +295,62 @@ const PAGE_CSS = `
 }
 `;
 
+/**
+ * The backend lists garment files both in `order.sheets` and under
+ * `order.garment`. The page renders them from `order.garment`, so they are
+ * skipped here to avoid showing each file twice.
+ */
+const GARMENT_SHEET_TYPES = new Set(["garment_pdf", "garment_gang_sheet"]);
+
+function transferSheets(order) {
+  return (order.sheets || []).filter(
+    (sheet) => !GARMENT_SHEET_TYPES.has(sheet.type),
+  );
+}
+
+/** Every downloadable file on an order: transfer sheets, then garment files. */
+function orderFiles(order) {
+  const garment = order.garment;
+  return [
+    ...transferSheets(order),
+    ...(garment?.pdf ? [garment.pdf] : []),
+    ...(garment?.gangSheets || []),
+  ];
+}
+
+function fileNameOf(file) {
+  return file.pngFileName || file.fileName || null;
+}
+
 /** Same-origin proxy download so the browser saves the file instead of opening it. */
-function downloadHref(sheet) {
-  return sheet.pngFileName
-    ? `/app/orders/download?file=${encodeURIComponent(sheet.pngFileName)}`
-    : sheet.downloadUrl || null;
+function downloadHref(file) {
+  const name = fileNameOf(file);
+  return name
+    ? `/app/orders/download?file=${encodeURIComponent(name)}`
+    : file.downloadUrl || null;
+}
+
+/**
+ * The API's inline view link, opened in a new tab. Only http(s) is allowed so
+ * a malformed value can never become a `javascript:` href.
+ */
+function viewHref(file) {
+  try {
+    const url = new URL(file.viewUrl);
+    return url.protocol === "https:" || url.protocol === "http:"
+      ? url.href
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function plural(count, noun) {
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
 function sheetLabel(sheet) {
-  const title = sheet.productTitle || "Transfer sheet";
+  const title = sheet.productTitle || sheet.label || "Transfer sheet";
   return sheet.partCount > 1
     ? `${title} (Sheet ${sheet.partIndex} of ${sheet.partCount})`
     : title;
@@ -303,6 +359,99 @@ function sheetLabel(sheet) {
 function sheetSize(sheet) {
   const dims = sheet.sheetDimensions;
   return dims ? `${dims.widthIn}" × ${dims.heightIn}"` : "Size unavailable";
+}
+
+/**
+ * Only the details the backend sent — design preview and gang sheets carry
+ * fewer fields than CustomImage sheets.
+ */
+function sheetMeta(sheet) {
+  const parts = [sheetSize(sheet)];
+  if (sheet.totalDesigns != null) {
+    parts.push(plural(sheet.totalDesigns, "design"));
+  }
+  if (sheet.artworkPiecesCount != null) {
+    parts.push(plural(sheet.artworkPiecesCount, "piece"));
+  }
+  if (sheet.preCut) parts.push(`Pre-cut: ${sheet.preCut}`);
+  return parts.join(" · ");
+}
+
+/** One downloadable file: its details, then View (when the API sent a link) and Download. */
+function FileRow({
+  file,
+  title,
+  meta,
+  idLabel,
+  id,
+  breakdown,
+  downloading,
+  onDownload,
+}) {
+  const name = fileNameOf(file);
+  const href = downloadHref(file);
+  const view = viewHref(file);
+
+  return (
+    <div className="ots-sheet">
+      <div className="ots-sheet-info">
+        <div className="ots-sheet-title">{title}</div>
+        <div className="ots-sheet-meta">{meta}</div>
+        {id && (
+          <div className="ots-sheet-meta">
+            {idLabel} <span className="ots-mono">{id}</span>
+          </div>
+        )}
+
+        {breakdown?.length > 0 && (
+          <table className="ots-breakdown">
+            <thead>
+              <tr>
+                <th>Dimension</th>
+                <th>Pre-cut</th>
+              </tr>
+            </thead>
+            <tbody>
+              {breakdown.map((item, i) => (
+                <tr key={`${item.dimension}-${i}`}>
+                  <td>
+                    {item.dimension}
+                    {item.count > 1 ? ` (×${item.count})` : ""}
+                  </td>
+                  <td>{item.preCut}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <div className="ots-sheet-actions">
+        {view && (
+          <a
+            href={view}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ots-btn ots-btn-small ots-btn-secondary"
+          >
+            View
+          </a>
+        )}
+        {href ? (
+          <button
+            type="button"
+            onClick={() => onDownload(file)}
+            disabled={downloading !== null}
+            className="ots-btn ots-btn-small ots-btn-primary"
+          >
+            {name && downloading === name ? "Downloading…" : "Download"}
+          </button>
+        ) : (
+          <span className="ots-badge ots-badge-warn">Unavailable</span>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export default function OrdersPage() {
@@ -322,7 +471,7 @@ export default function OrdersPage() {
     return {
       ready: ready.length,
       failed: orders.length - ready.length,
-      sheets: ready.reduce((n, o) => n + (o.sheets?.length || 0), 0),
+      files: ready.reduce((n, o) => n + orderFiles(o).length, 0),
     };
   }, [orders]);
 
@@ -335,18 +484,18 @@ export default function OrdersPage() {
   };
 
   /**
-   * Fetch the sheet, then save the blob.
+   * Fetch the file, then save the blob.
    *
    * A plain <a download> can't be used here: it navigates, and a navigation
    * carries no Shopify session token, so the loader answers with the App Bridge
-   * auth bounce page and the browser saves that HTML instead of the image.
+   * auth bounce page and the browser saves that HTML instead of the file.
    * App Bridge patches fetch to attach the token on same-origin requests.
    */
-  const downloadSheet = async (sheet) => {
-    const href = downloadHref(sheet);
+  const downloadSheet = async (file) => {
+    const href = downloadHref(file);
     if (!href) return;
 
-    const name = sheet.pngFileName || "transfer-sheet.png";
+    const name = fileNameOf(file) || "transfer-sheet.png";
     setDownloading(name);
     setDownloadError(null);
 
@@ -357,9 +506,12 @@ export default function OrdersPage() {
       }
 
       // An HTML body here means the session token was rejected — catch it
-      // rather than handing the user a .html file named like an image.
+      // rather than handing the user a .html file named like a sheet.
       const contentType = res.headers.get("Content-Type") || "";
-      if (!contentType.startsWith("image/")) {
+      if (
+        !contentType.startsWith("image/") &&
+        !contentType.startsWith("application/pdf")
+      ) {
         throw new Error(
           "Session expired. Reload the page and try the download again.",
         );
@@ -495,8 +647,8 @@ export default function OrdersPage() {
                   <div className="ots-banner ots-banner-info">
                     <span style={{ fontWeight: 700 }}>Ready</span>
                     <span>
-                      {summary.sheets}{" "}
-                      {summary.sheets === 1 ? "sheet" : "sheets"} across{" "}
+                      {summary.files}{" "}
+                      {summary.files === 1 ? "file" : "files"} across{" "}
                       {summary.ready}{" "}
                       {summary.ready === 1 ? "order" : "orders"}
                       {summary.failed > 0
@@ -508,7 +660,9 @@ export default function OrdersPage() {
                 )}
 
                 {orders.map((order) => {
-                  const sheets = order.sheets || [];
+                  const sheets = transferSheets(order);
+                  const garment = order.garment;
+                  const files = orderFiles(order);
                   return (
                     <div className="ots-order" key={order.orderId}>
                       <div className="ots-order-head">
@@ -518,26 +672,27 @@ export default function OrdersPage() {
                           </div>
                           <div className="ots-order-meta">
                             ID {order.orderId}
+                            {/* The backend's totalDesigns leaves out garment
+                                gang sheets, so a garment-only order reports 0. */}
+                            {order.success && order.totalDesigns > 0
+                              ? ` · ${plural(order.totalDesigns, "design")}`
+                              : ""}
                             {order.success
-                              ? ` · ${order.totalDesigns} design${
-                                  order.totalDesigns === 1 ? "" : "s"
-                                } · ${sheets.length} sheet${
-                                  sheets.length === 1 ? "" : "s"
-                                }`
+                              ? ` · ${plural(files.length, "file")}`
                               : ""}
                           </div>
                         </div>
                         {order.success ? (
                           <div className="ots-sheet-actions">
                             <span className="ots-badge">Ready</span>
-                            {sheets.length > 1 && (
+                            {files.length > 1 && (
                               <button
                                 type="button"
                                 className="ots-btn ots-btn-small ots-btn-secondary"
-                                onClick={() => downloadAll(sheets)}
+                                onClick={() => downloadAll(files)}
                                 disabled={downloading !== null}
                               >
-                                Download all ({sheets.length})
+                                Download all ({files.length})
                               </button>
                             )}
                           </div>
@@ -565,72 +720,55 @@ export default function OrdersPage() {
                           </p>
                         )}
 
-                        {sheets.map((sheet) => {
-                          const href = downloadHref(sheet);
-                          return (
-                            <div
-                              className="ots-sheet"
-                              key={sheet.pngFileName || `${sheet.productId}-${sheet.partIndex}`}
-                            >
-                              <div className="ots-sheet-info">
-                                <div className="ots-sheet-title">
-                                  {sheetLabel(sheet)}
-                                </div>
-                                <div className="ots-sheet-meta">
-                                  {sheetSize(sheet)} · {sheet.totalDesigns}{" "}
-                                  design{sheet.totalDesigns === 1 ? "" : "s"} ·
-                                  Pre-cut: {sheet.preCut || "No"}
-                                </div>
-                                <div className="ots-sheet-meta">
-                                  Product <span className="ots-mono">{sheet.productId}</span>
-                                </div>
+                        {sheets.map((sheet) => (
+                          <FileRow
+                            key={
+                              fileNameOf(sheet) ||
+                              `${sheet.productId || sheet.designId}-${sheet.partIndex}`
+                            }
+                            file={sheet}
+                            title={sheetLabel(sheet)}
+                            meta={sheetMeta(sheet)}
+                            idLabel={sheet.productId ? "Product" : "Design"}
+                            id={sheet.productId || sheet.designId}
+                            breakdown={sheet.designBreakdown}
+                            downloading={downloading}
+                            onDownload={downloadSheet}
+                          />
+                        ))}
 
-                                {sheet.designBreakdown?.length > 0 && (
-                                  <table className="ots-breakdown">
-                                    <thead>
-                                      <tr>
-                                        <th>Dimension</th>
-                                        <th>Pre-cut</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {sheet.designBreakdown.map((item, i) => (
-                                        <tr key={`${item.dimension}-${i}`}>
-                                          <td>
-                                            {item.dimension}
-                                            {item.count > 1
-                                              ? ` (×${item.count})`
-                                              : ""}
-                                          </td>
-                                          <td>{item.preCut}</td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
-                                )}
-                              </div>
+                        {garment && (
+                          <>
+                            <h4 className="ots-group-title">
+                              Garment print files
+                            </h4>
 
-                              <div className="ots-sheet-actions">
-                                {href ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => downloadSheet(sheet)}
-                                    disabled={downloading !== null}
-                                    className="ots-btn ots-btn-small ots-btn-primary"
-                                  >
-                                    {downloading === sheet.pngFileName
-                                      ? "Downloading…"
-                                      : "Download"}
-                                  </button>
-                                ) : (
-                                  <span className="ots-badge ots-badge-warn">
-                                    Unavailable
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
+                            {garment.pdf && (
+                              <FileRow
+                                file={garment.pdf}
+                                title={garment.pdf.label || "Print Sheet PDF"}
+                                meta={`PDF · ${plural(garment.pdf.pageCount || 1, "page")}`}
+                                downloading={downloading}
+                                onDownload={downloadSheet}
+                              />
+                            )}
+
+                            {/* Labels already name the design, size and part. */}
+                            {(garment.gangSheets || []).map((sheet, i) => (
+                              <FileRow
+                                key={
+                                  fileNameOf(sheet) ||
+                                  `${sheet.designId}-${sheet.size}-${sheet.partIndex ?? i}`
+                                }
+                                file={sheet}
+                                title={sheet.label || "Gang sheet"}
+                                meta={sheetMeta(sheet)}
+                                downloading={downloading}
+                                onDownload={downloadSheet}
+                              />
+                            ))}
+                          </>
+                        )}
                       </div>
                     </div>
                   );
@@ -653,13 +791,16 @@ export default function OrdersPage() {
 
       <s-section slot="aside" heading="About">
         <s-paragraph>
-          Enter an <strong>Order ID</strong> to generate print-ready transfer
-          sheets. Only line items carrying a <strong>CustomImage</strong>{" "}
-          property are included — orders without one are skipped.
+          Enter an <strong>Order ID</strong> to generate print-ready sheets.
+          Line items with a <strong>CustomImage</strong> property, a design
+          preview or garment print files are included — orders with none are
+          skipped.
         </s-paragraph>
         <s-paragraph>
           Sheets are grouped per product and split into parts when a sheet would
-          run past 300&quot; in length. Generating does not send an email.
+          run past 300&quot; in length. Garment orders also get a print sheet
+          PDF and one gang sheet per design and size. Generating does not send
+          an email.
         </s-paragraph>
       </s-section>
     </s-page>
