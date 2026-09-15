@@ -11,7 +11,7 @@ export const loader = async ({ request }) => {
   return null;
 };
 
-/** Split the free-text field into a de-duped list of order IDs. */
+/** Split the free-text field into a de-duped list of order IDs or numbers. */
 function parseOrderIds(raw) {
   return [
     ...new Set(
@@ -29,7 +29,11 @@ export const action = async ({ request }) => {
   const orderIds = parseOrderIds(form.get("orderIds"));
 
   if (!orderIds.length) {
-    return { ok: false, orders: [], error: "Enter at least one order ID." };
+    return {
+      ok: false,
+      orders: [],
+      error: "Enter at least one order ID or number.",
+    };
   }
 
   try {
@@ -330,21 +334,6 @@ function downloadHref(file) {
     : file.downloadUrl || null;
 }
 
-/**
- * The API's inline view link, opened in a new tab. Only http(s) is allowed so
- * a malformed value can never become a `javascript:` href.
- */
-function viewHref(file) {
-  try {
-    const url = new URL(file.viewUrl);
-    return url.protocol === "https:" || url.protocol === "http:"
-      ? url.href
-      : null;
-  } catch {
-    return null;
-  }
-}
-
 function plural(count, noun) {
   return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
@@ -377,7 +366,7 @@ function sheetMeta(sheet) {
   return parts.join(" · ");
 }
 
-/** One downloadable file: its details, then View (when the API sent a link) and Download. */
+/** One downloadable file: its details, then a Download button. */
 function FileRow({
   file,
   title,
@@ -390,7 +379,6 @@ function FileRow({
 }) {
   const name = fileNameOf(file);
   const href = downloadHref(file);
-  const view = viewHref(file);
 
   return (
     <div className="ots-sheet">
@@ -427,16 +415,6 @@ function FileRow({
       </div>
 
       <div className="ots-sheet-actions">
-        {view && (
-          <a
-            href={view}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="ots-btn ots-btn-small ots-btn-secondary"
-          >
-            View
-          </a>
-        )}
         {href ? (
           <button
             type="button"
@@ -558,21 +536,22 @@ export default function OrdersPage() {
 
               <form onSubmit={handleSubmit}>
                 <label className="ots-label" htmlFor="order-ids">
-                  Order ID
+                  Order ID or number
                 </label>
                 <input
                   id="order-ids"
                   type="text"
                   value={orderIdInput}
                   onChange={(e) => setOrderIdInput(e.target.value)}
-                  placeholder="e.g. 6103847291"
+                  placeholder="e.g. 6103847291 or #16968"
                   className="ots-input"
                   disabled={isGenerating}
                   autoComplete="off"
                 />
                 <div className="ots-hint">
-                  Numeric order ID from the Shopify admin URL. Separate multiple
-                  IDs with a comma or space
+                  Numeric order ID from the Shopify admin URL, or the order
+                  number from the Orders list (e.g. #16968). Separate multiple
+                  entries with a comma or space
                   {parsedIds.length > 1 ? ` — ${parsedIds.length} detected` : ""}
                   .
                 </div>
@@ -780,8 +759,8 @@ export default function OrdersPage() {
               <div className="ots-empty">
                 <div className="ots-empty-title">No sheets generated yet</div>
                 <div>
-                  Enter an order ID above to build its transfer sheets and
-                  download them.
+                  Enter an order ID or number above to build its transfer
+                  sheets and download them.
                 </div>
               </div>
             )}
@@ -791,7 +770,8 @@ export default function OrdersPage() {
 
       <s-section slot="aside" heading="About">
         <s-paragraph>
-          Enter an <strong>Order ID</strong> to generate print-ready sheets.
+          Enter an <strong>Order ID</strong> or <strong>order number</strong>{" "}
+          to generate print-ready sheets.
           Line items with a <strong>CustomImage</strong> property, a design
           preview or garment print files are included — orders with none are
           skipped.
