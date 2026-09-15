@@ -11,35 +11,30 @@ export const loader = async ({ request }) => {
   return null;
 };
 
-/** Split the free-text field into a de-duped list of order IDs or numbers. */
-function parseOrderIds(raw) {
-  return [
-    ...new Set(
-      String(raw || "")
-        .split(/[\s,]+/)
-        .map((id) => id.trim())
-        .filter(Boolean),
-    ),
-  ];
+const MULTIPLE_ENTRIES_ERROR = "Enter only one order ID or number.";
+
+/** Only one order is accepted, so a comma or space in the trimmed value is an input error. */
+function hasMultipleEntries(orderId) {
+  return /[\s,]/.test(orderId);
 }
 
 export const action = async ({ request }) => {
   const { session } = await authenticate.admin(request);
   const form = await request.formData();
-  const orderIds = parseOrderIds(form.get("orderIds"));
+  const orderId = String(form.get("orderId") || "").trim();
 
-  if (!orderIds.length) {
-    return {
-      ok: false,
-      orders: [],
-      error: "Enter at least one order ID or number.",
-    };
+  if (!orderId) {
+    return { ok: false, orders: [], error: "Enter an order ID or number." };
+  }
+
+  if (hasMultipleEntries(orderId)) {
+    return { ok: false, orders: [], error: MULTIPLE_ENTRIES_ERROR };
   }
 
   try {
     const res = await generateTransferSheetsByProduct({
       shop: session.shop,
-      orderIds,
+      orderIds: [orderId],
     });
 
     if (!res.ok) {
@@ -107,6 +102,7 @@ const PAGE_CSS = `
   color: #202223;
 }
 .ots-hint { font-size: 12px; color: #6d7175; margin-top: 6px; }
+.ots-hint-error { color: #b8200a; }
 .ots-input {
   width: 100%;
   max-width: 480px;
@@ -442,7 +438,8 @@ export default function OrdersPage() {
   const result = fetcher.data;
   const orders = useMemo(() => result?.orders || [], [result]);
 
-  const parsedIds = useMemo(() => parseOrderIds(orderIdInput), [orderIdInput]);
+  const orderId = orderIdInput.trim();
+  const hasMultiple = hasMultipleEntries(orderId);
 
   const summary = useMemo(() => {
     const ready = orders.filter((o) => o.success);
@@ -455,9 +452,9 @@ export default function OrdersPage() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!parsedIds.length) return;
+    if (!orderId || hasMultiple) return;
     const fd = new FormData();
-    fd.set("orderIds", parsedIds.join(","));
+    fd.set("orderId", orderId);
     fetcher.submit(fd, { method: "post" });
   };
 
@@ -535,11 +532,11 @@ export default function OrdersPage() {
               </div>
 
               <form onSubmit={handleSubmit}>
-                <label className="ots-label" htmlFor="order-ids">
+                <label className="ots-label" htmlFor="order-id">
                   Order ID or number
                 </label>
                 <input
-                  id="order-ids"
+                  id="order-id"
                   type="text"
                   value={orderIdInput}
                   onChange={(e) => setOrderIdInput(e.target.value)}
@@ -547,20 +544,23 @@ export default function OrdersPage() {
                   className="ots-input"
                   disabled={isGenerating}
                   autoComplete="off"
+                  aria-invalid={hasMultiple}
+                  aria-describedby="order-id-hint"
                 />
-                <div className="ots-hint">
-                  Numeric order ID from the Shopify admin URL, or the order
-                  number from the Orders list (e.g. #16968). Separate multiple
-                  entries with a comma or space
-                  {parsedIds.length > 1 ? ` — ${parsedIds.length} detected` : ""}
-                  .
+                <div
+                  id="order-id-hint"
+                  className={`ots-hint${hasMultiple ? " ots-hint-error" : ""}`}
+                >
+                  {hasMultiple
+                    ? MULTIPLE_ENTRIES_ERROR
+                    : "Numeric order ID from the Shopify admin URL, or the order number from the Orders list (e.g. #16968). One order at a time."}
                 </div>
 
                 <div className="ots-actions">
                   <button
                     type="submit"
                     className="ots-btn ots-btn-primary"
-                    disabled={isGenerating || !parsedIds.length}
+                    disabled={isGenerating || !orderId || hasMultiple}
                   >
                     {isGenerating && <span className="ots-spinner" />}
                     {isGenerating ? "Generating…" : "Generate sheets"}
@@ -582,9 +582,8 @@ export default function OrdersPage() {
               <div className="ots-banner ots-banner-info">
                 <span style={{ fontWeight: 700 }}>Working</span>
                 <span>
-                  Rendering sheets for {parsedIds.length}{" "}
-                  {parsedIds.length === 1 ? "order" : "orders"}. This can take
-                  tens of seconds per order — keep this tab open.
+                  Rendering sheets for order {orderId}. This can take tens of
+                  seconds — keep this tab open.
                 </span>
               </div>
             )}
