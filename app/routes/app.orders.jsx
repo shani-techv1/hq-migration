@@ -418,7 +418,7 @@ function FileRow({
             disabled={downloading !== null}
             className="ots-btn ots-btn-small ots-btn-primary"
           >
-            {name && downloading === name ? "Opening…" : "Open"}
+            {name && downloading === name ? "Downloading…" : "Download"}
           </button>
         ) : (
           <span className="ots-badge ots-badge-warn">Unavailable</span>
@@ -468,7 +468,9 @@ export default function OrdersPage() {
    * requests, so the file is fetched first and handed to the tab as a blob.
    *
    * The tab is opened synchronously (before the await) so browsers still
-   * attribute it to the click and don't treat it as a blocked pop-up.
+   * attribute it to the click and don't treat it as a blocked pop-up. It
+   * gets a "Loading…" placeholder immediately since large sheets can take a
+   * few seconds to fetch and an about:blank tab otherwise looks broken.
    */
   const openSheet = async (file) => {
     const href = downloadHref(file);
@@ -476,13 +478,19 @@ export default function OrdersPage() {
 
     const name = fileNameOf(file) || "transfer-sheet.png";
     const tab = window.open("", "_blank");
+    if (tab) {
+      tab.document.title = "Loading…";
+      tab.document.body.style.cssText =
+        "display:flex;align-items:center;justify-content:center;height:100vh;margin:0;font-family:system-ui,-apple-system,sans-serif;color:#6d7175;";
+      tab.document.body.textContent = "Loading file…";
+    }
     setDownloading(name);
     setDownloadError(null);
 
     try {
       const res = await fetch(href);
       if (!res.ok) {
-        throw new Error(`Couldn't open file (${res.status}).`);
+        throw new Error(`Download failed (${res.status}).`);
       }
 
       // An HTML body here means the session token was rejected — catch it
@@ -506,7 +514,7 @@ export default function OrdersPage() {
       setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
     } catch (err) {
       tab?.close();
-      setDownloadError(err.message || "Couldn't open file.");
+      setDownloadError(err.message || "Download failed.");
     } finally {
       setDownloading(null);
     }
@@ -603,7 +611,7 @@ export default function OrdersPage() {
 
             {downloadError && (
               <div className="ots-banner ots-banner-error">
-                <span style={{ fontWeight: 700 }}>Couldn't open file</span>
+                <span style={{ fontWeight: 700 }}>Download failed</span>
                 <span>{downloadError}</span>
                 <button
                   type="button"
@@ -676,7 +684,7 @@ export default function OrdersPage() {
                                 onClick={() => openAll(files)}
                                 disabled={downloading !== null}
                               >
-                                Open all ({files.length})
+                                Download all ({files.length})
                               </button>
                             )}
                           </div>
@@ -765,7 +773,7 @@ export default function OrdersPage() {
                 <div className="ots-empty-title">No sheets generated yet</div>
                 <div>
                   Enter an order ID or number above to build its transfer
-                  sheets and open them.
+                  sheets and download them.
                 </div>
               </div>
             )}
