@@ -537,15 +537,6 @@ export default function OrdersPage() {
     }
   };
 
-  // Sequential — the browser drops downloads fired simultaneously. Tabs after
-  // the first open asynchronously and may be pop-up blocked; those files are
-  // saved from this page instead.
-  const downloadAll = async (sheets) => {
-    for (const sheet of sheets) {
-      await downloadSheet(sheet);
-    }
-  };
-
   return (
     <s-page heading="Transfer sheets">
       <s-section>
@@ -695,18 +686,6 @@ export default function OrdersPage() {
                         {order.success ? (
                           <div className="ots-sheet-actions">
                             <span className="ots-badge">Ready</span>
-                            {files.length > 1 && (
-                              <button
-                                type="button"
-                                className="ots-btn ots-btn-small ots-btn-secondary"
-                                onClick={() => downloadAll(files)}
-                                disabled={files.some((f) =>
-                                  downloading.has(downloadHref(f)),
-                                )}
-                              >
-                                Download all ({files.length})
-                              </button>
-                            )}
                           </div>
                         ) : (
                           <span
