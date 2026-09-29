@@ -461,19 +461,21 @@ export default function OrdersPage() {
   };
 
   /**
-   * Fetch the file, save it from a new tab, then close that tab.
+   * Fetch the file and save it, with a new tab showing progress meanwhile.
    *
    * A link can't point straight at the proxy URL: it navigates, and a
    * navigation carries no Shopify session token, so the loader answers with
    * the App Bridge auth bounce page instead of the file. App Bridge patches
    * fetch to attach the token on same-origin requests, so the file is fetched
    * first and saved from a blob URL via <a download>, which forces a download
-   * where navigating the tab to the blob would only preview it.
+   * where navigating a tab to the blob would only preview it.
+   *
+   * The save runs from this document, not the tab: this document owns the
+   * blob URL and stays open. Saving from the tab and then closing it made
+   * Chrome intermittently fail large downloads with a network error.
    *
    * The tab is opened synchronously (before the await) so browsers attribute
-   * it to the click rather than blocking it as a pop-up. If it is blocked
-   * anyway, or closed before the fetch finishes, the file is saved from this
-   * page instead.
+   * it to the click rather than blocking it as a pop-up.
    */
   const downloadSheet = async (file) => {
     const href = downloadHref(file);
@@ -509,26 +511,17 @@ export default function OrdersPage() {
       }
 
       const blobUrl = URL.createObjectURL(await res.blob());
-      const liveTab = tab && !tab.closed ? tab : null;
-      const doc = liveTab ? liveTab.document : document;
-      const a = doc.createElement("a");
+      const a = document.createElement("a");
       a.href = blobUrl;
       a.download = name;
-      doc.body.appendChild(a);
+      document.body.appendChild(a);
       a.click();
       a.remove();
-
-      if (liveTab) {
-        liveTab.document.body.textContent = "Download started. Closing this tab…";
-        // Closing right away can cancel the download before the browser has
-        // handed it to its download manager.
-        setTimeout(() => liveTab.close(), 1000);
-      }
       setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
     } catch (err) {
-      tab?.close();
       setDownloadError(err.message || "Download failed.");
     } finally {
+      tab?.close();
       setDownloading((prev) => {
         const next = new Set(prev);
         next.delete(href);
