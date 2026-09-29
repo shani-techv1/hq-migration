@@ -322,7 +322,7 @@ function fileNameOf(file) {
   return file.pngFileName || file.fileName || null;
 }
 
-/** Same-origin proxy download so the browser saves the file instead of opening it. */
+/** Same-origin proxy endpoint; fetched via JS so App Bridge attaches the session token. */
 function downloadHref(file) {
   const name = fileNameOf(file);
   return name
@@ -418,7 +418,7 @@ function FileRow({
             disabled={downloading !== null}
             className="ots-btn ots-btn-small ots-btn-primary"
           >
-            {name && downloading === name ? "Downloading…" : "Download"}
+            {name && downloading === name ? "Opening…" : "Open"}
           </button>
         ) : (
           <span className="ots-badge ots-badge-warn">Unavailable</span>
@@ -459,58 +459,64 @@ export default function OrdersPage() {
   };
 
   /**
-   * Fetch the file, then save the blob.
+   * Fetch the file, then open the blob in a new tab.
    *
-   * A plain <a download> can't be used here: it navigates, and a navigation
-   * carries no Shopify session token, so the loader answers with the App Bridge
-   * auth bounce page and the browser saves that HTML instead of the file.
-   * App Bridge patches fetch to attach the token on same-origin requests.
+   * A plain <a target="_blank"> can't be used here: it navigates, and a
+   * navigation carries no Shopify session token, so the loader answers with
+   * the App Bridge auth bounce page and the browser opens that HTML instead
+   * of the file. App Bridge patches fetch to attach the token on same-origin
+   * requests, so the file is fetched first and handed to the tab as a blob.
+   *
+   * The tab is opened synchronously (before the await) so browsers still
+   * attribute it to the click and don't treat it as a blocked pop-up.
    */
-  const downloadSheet = async (file) => {
+  const openSheet = async (file) => {
     const href = downloadHref(file);
     if (!href) return;
 
     const name = fileNameOf(file) || "transfer-sheet.png";
+    const tab = window.open("", "_blank");
     setDownloading(name);
     setDownloadError(null);
 
     try {
       const res = await fetch(href);
       if (!res.ok) {
-        throw new Error(`Download failed (${res.status}).`);
+        throw new Error(`Couldn't open file (${res.status}).`);
       }
 
       // An HTML body here means the session token was rejected — catch it
-      // rather than handing the user a .html file named like a sheet.
+      // rather than opening a tab with the auth bounce page.
       const contentType = res.headers.get("Content-Type") || "";
       if (
         !contentType.startsWith("image/") &&
         !contentType.startsWith("application/pdf")
       ) {
         throw new Error(
-          "Session expired. Reload the page and try the download again.",
+          "Session expired. Reload the page and try again.",
         );
       }
 
       const blobUrl = URL.createObjectURL(await res.blob());
-      const a = document.createElement("a");
-      a.href = blobUrl;
-      a.download = name;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(blobUrl);
+      if (tab) {
+        tab.location.href = blobUrl;
+      }
+      // The tab needs the blob URL to stay valid after it loads it, so this
+      // revoke is delayed rather than immediate.
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
     } catch (err) {
-      setDownloadError(err.message || "Download failed.");
+      tab?.close();
+      setDownloadError(err.message || "Couldn't open file.");
     } finally {
       setDownloading(null);
     }
   };
 
-  // Sequential — the browser drops downloads fired simultaneously.
-  const downloadAll = async (sheets) => {
+  // Sequential, and only the first tab is opened directly from the click —
+  // browsers can block the rest as pop-ups since they open asynchronously.
+  const openAll = async (sheets) => {
     for (const sheet of sheets) {
-      await downloadSheet(sheet);
+      await openSheet(sheet);
     }
   };
 
@@ -597,7 +603,7 @@ export default function OrdersPage() {
 
             {downloadError && (
               <div className="ots-banner ots-banner-error">
-                <span style={{ fontWeight: 700 }}>Download failed</span>
+                <span style={{ fontWeight: 700 }}>Couldn't open file</span>
                 <span>{downloadError}</span>
                 <button
                   type="button"
@@ -667,10 +673,10 @@ export default function OrdersPage() {
                               <button
                                 type="button"
                                 className="ots-btn ots-btn-small ots-btn-secondary"
-                                onClick={() => downloadAll(files)}
+                                onClick={() => openAll(files)}
                                 disabled={downloading !== null}
                               >
-                                Download all ({files.length})
+                                Open all ({files.length})
                               </button>
                             )}
                           </div>
@@ -711,7 +717,7 @@ export default function OrdersPage() {
                             id={sheet.productId || sheet.designId}
                             breakdown={sheet.designBreakdown}
                             downloading={downloading}
-                            onDownload={downloadSheet}
+                            onDownload={openSheet}
                           />
                         ))}
 
@@ -727,7 +733,7 @@ export default function OrdersPage() {
                                 title={garment.pdf.label || "Print Sheet PDF"}
                                 meta={`PDF · ${plural(garment.pdf.pageCount || 1, "page")}`}
                                 downloading={downloading}
-                                onDownload={downloadSheet}
+                                onDownload={openSheet}
                               />
                             )}
 
@@ -742,7 +748,7 @@ export default function OrdersPage() {
                                 title={sheet.label || "Gang sheet"}
                                 meta={sheetMeta(sheet)}
                                 downloading={downloading}
-                                onDownload={downloadSheet}
+                                onDownload={openSheet}
                               />
                             ))}
                           </>
@@ -759,7 +765,7 @@ export default function OrdersPage() {
                 <div className="ots-empty-title">No sheets generated yet</div>
                 <div>
                   Enter an order ID or number above to build its transfer
-                  sheets and download them.
+                  sheets and open them.
                 </div>
               </div>
             )}
