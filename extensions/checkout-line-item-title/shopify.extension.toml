@@ -1,7 +1,7 @@
 # Checkout UI extension: show dynamic product name for CustomScale line items
 # When a line item has the "Product" property (the real product title), display it
 # so checkout shows the customized product name instead of only "CustomScale Dynamic Product".
-api_version = "2025-10"
+api_version = "2026-10"
 
 [[extensions]]
 uid = "12b3c06e-b60f-0f96-ceea-54ee0225c1920032793b"
