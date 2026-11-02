@@ -1,9 +1,9 @@
 /**
  * External API client for IP address management.
- * Base URL: https://highquality.allgovjobs.com/backend
+ * Base URL: https://highquality-image.agiledigitaledge.dev/backend
  */
 
-const API_BASE = "https://highquality.allgovjobs.com/backend";
+const API_BASE = "https://highquality-image.agiledigitaledge.dev/backend";
 
 /**
  * GET /api/ip-addresses - List all IP addresses

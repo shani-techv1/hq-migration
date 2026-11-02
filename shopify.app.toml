@@ -2,7 +2,7 @@
 
 client_id = "f1daef32f7052115a100cdb78ecdf791"
 name = "CustomScale-app"
-application_url = "https://highquality.allgovjobs.com"
+application_url = "https://highquality-image.agiledigitaledge.dev"
 embedded = true
 handle = "customscale-app"
 
@@ -29,9 +29,9 @@ api_version = "2025-01"
 scopes = "read_orders,read_products,write_products"
 
 [auth]
-redirect_urls = [ "https://highquality.allgovjobs.com/backend/auth/callback" ]
+redirect_urls = [ "https://highquality-image.agiledigitaledge.dev/backend/auth/callback" ]
 
 [app_proxy]
-url = "https://highquality.allgovjobs.com/api"
+url = "https://highquality-image.agiledigitaledge.dev/api"
 subpath = "customscale-app"
 prefix = "apps"

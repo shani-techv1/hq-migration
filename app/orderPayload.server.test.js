@@ -13,10 +13,10 @@ import {
 describe("extractImagesFromProperties", () => {
   it("extracts URL from CustomImage property", () => {
     const props = [
-      { name: "CustomImage", value: "https://highquality.allgovjobs.com/backend/processed/1771182255193-img.png" },
+      { name: "CustomImage", value: "https://highquality-image.agiledigitaledge.dev/backend/processed/1771182255193-img.png" },
     ];
     const got = extractImagesFromProperties(props);
-    assert.deepStrictEqual(got, ["https://highquality.allgovjobs.com/backend/processed/1771182255193-img.png"]);
+    assert.deepStrictEqual(got, ["https://highquality-image.agiledigitaledge.dev/backend/processed/1771182255193-img.png"]);
   });
 
   it("extracts URL from Custom Image (with space) property", () => {
@@ -82,7 +82,7 @@ describe("buildLineItemsAndImages", () => {
           properties: [
             {
               name: "CustomImage",
-              value: "https://highquality.allgovjobs.com/backend/processed/1771182255193-img.png",
+              value: "https://highquality-image.agiledigitaledge.dev/backend/processed/1771182255193-img.png",
             },
           ],
         },
@@ -90,9 +90,9 @@ describe("buildLineItemsAndImages", () => {
     };
     const { lineItems, images } = buildLineItemsAndImages(order);
     assert.strictEqual(images.length, 1);
-    assert.strictEqual(images[0], "https://highquality.allgovjobs.com/backend/processed/1771182255193-img.png");
+    assert.strictEqual(images[0], "https://highquality-image.agiledigitaledge.dev/backend/processed/1771182255193-img.png");
     assert.strictEqual(lineItems.length, 1);
-    assert.strictEqual(lineItems[0].custom_image_url, "https://highquality.allgovjobs.com/backend/processed/1771182255193-img.png");
+    assert.strictEqual(lineItems[0].custom_image_url, "https://highquality-image.agiledigitaledge.dev/backend/processed/1771182255193-img.png");
     assert.strictEqual(lineItems[0].name, "The Collection Snowboard: Liquid");
   });
 

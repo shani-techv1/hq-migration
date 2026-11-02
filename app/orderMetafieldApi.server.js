@@ -1,9 +1,9 @@
 /**
  * External API client for order metafields and product transfer sheets.
- * Base URL: https://highquality.allgovjobs.com
+ * Base URL: https://highquality-image.agiledigitaledge.dev
  */
 
-const API_BASE = "https://highquality.allgovjobs.com/backend";
+const API_BASE = "https://highquality-image.agiledigitaledge.dev/backend";
 
 /**
  * POST /api/order-metafield - Save order metafield when customer places order.
