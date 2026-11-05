@@ -2,7 +2,7 @@
 
 client_id = "a2c4b4311f03178e0187dac2582e7cb4"
 name = "CustomScale-app"
-application_url = "https://highquality-image.agiledigitaledge.dev"
+application_url = "https://highquality-image.highqualitytransfers.com"
 embedded = true
 
 [build]
@@ -27,11 +27,10 @@ uri = "/webhooks/app/scopes_update"
 scopes = "read_orders,read_products,write_products,write_app_proxy"
 
 [auth]
-redirect_urls = [
-  "https://highquality-image.agiledigitaledge.dev/backend/auth/callback"
-]
+redirect_urls = [ "https://highquality-image.highqualitytransfers.com/backend/auth/callback" ]
 
 [app_proxy]
-url = "https://highquality-image.agiledigitaledge.dev/api"
+url = "https://highquality-image.highqualitytransfers.com/api"
 subpath = "customscale-app"
 prefix = "apps"
+
