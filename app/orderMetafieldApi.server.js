@@ -1,9 +1,9 @@
 /**
  * External API client for order metafields and product transfer sheets.
- * Base URL: https://highquality-image.agiledigitaledge.dev
+ * Base URL: https://highquality-image.highqualitytransfers.com
  */
 
-const API_BASE = "https://highquality-image.agiledigitaledge.dev/backend";
+const API_BASE = "https://highquality-image.highqualitytransfers.com/backend";
 
 /**
  * POST /api/order-metafield - Save order metafield when customer places order.

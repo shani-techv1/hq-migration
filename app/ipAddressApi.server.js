@@ -1,9 +1,9 @@
 /**
  * External API client for IP address management.
- * Base URL: https://highquality-image.agiledigitaledge.dev/backend
+ * Base URL: https://highquality-image.highqualitytransfers.com/backend
  */
 
-const API_BASE = "https://highquality-image.agiledigitaledge.dev/backend";
+const API_BASE = "https://highquality-image.highqualitytransfers.com/backend";
 
 /**
  * GET /api/ip-addresses - List all IP addresses
