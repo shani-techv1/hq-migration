@@ -4,7 +4,7 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 
 
-const BACKEND_URL = "https://highquality-image.agiledigitaledge.dev/backend";
+const BACKEND_URL = "https://highquality-image.highqualitytransfers.com/backend";
 
 export const loader = async ({ request }) => {
   const { session } = await authenticate.admin(request);
