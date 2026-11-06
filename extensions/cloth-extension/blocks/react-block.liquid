@@ -107,8 +107,8 @@
 </style>
 
 <!-- Open the TCP/TLS connection to the asset CDN early, in parallel with HTML parse -->
-<link rel="preconnect" href="https://shopify-ext.vercel.app" crossorigin>
-<link rel="dns-prefetch" href="https://shopify-ext.vercel.app">
+<link rel="preconnect" href="https://custom-scale-frontend.highqualitytransfers.com" crossorigin>
+<link rel="dns-prefetch" href="https://custom-scale-frontend.highqualitytransfers.com">
 
 {%- comment -%}
   Preload the 6 garment WebPs that Konva will request as soon as the editor mounts.
@@ -116,7 +116,7 @@
   so by the time React renders the previews the images are already in the HTTP cache.
   Route-aware so /uv*-routes preload UV-DTF assets instead of cloth assets.
 {%- endcomment -%}
-{%- assign cdn = 'https://shopify-ext.vercel.app/assets' -%}
+{%- assign cdn = 'https://custom-scale-frontend.highqualitytransfers.com/assets' -%}
 {%- assign p = request.path | downcase -%}
 {%- if p contains 'uv' -%}
   <link rel="preload" as="image" href="{{ cdn }}/6-products/bottle.webp" type="image/webp" fetchpriority="high" crossorigin>
@@ -136,7 +136,7 @@
 
 <!-- Load React app from external CDN (Shopify has 10KB limit for inline JS) -->
 <!-- Module script: required for the chunked build (Konva/Fabric ship as separate chunks). -->
-<!-- Rolling back: drop type="module" and add `defer` if the Vercel build is reverted to iife. -->
+<!-- Rolling back: drop type="module" and add `defer` if the editor build is reverted to iife. -->
 <link rel="stylesheet" href="{{ block.settings.editor_css_url }}">
 <script type="module" src="{{ block.settings.editor_js_url }}"></script>
 
@@ -149,14 +149,14 @@
       "type": "text",
       "id": "editor_js_url",
       "label": "Editor JS URL",
-      "default": "https://shopify-ext.vercel.app/index.js",
+      "default": "https://custom-scale-frontend.highqualitytransfers.com/index.js",
       "info": "URL to the React editor JavaScript bundle"
     },
     {
       "type": "text",
       "id": "editor_css_url",
       "label": "Editor CSS URL", 
-      "default": "https://shopify-ext.vercel.app/index.css",
+      "default": "https://custom-scale-frontend.highqualitytransfers.com/index.css",
       "info": "URL to the React editor CSS stylesheet"
     }
   ]
