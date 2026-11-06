@@ -106,9 +106,16 @@
   }
 </style>
 
+{%- comment -%}
+  Host serving the editor bundle and its assets (the shopify-ext repo).
+  Kept in code rather than block settings so values saved in a theme can't
+  pin the store to an old host. Changing hosts requires `shopify app deploy`.
+{%- endcomment -%}
+{%- assign editor_origin = 'https://custom-scale-frontend.highqualitytransfers.com' -%}
+
 <!-- Open the TCP/TLS connection to the asset CDN early, in parallel with HTML parse -->
-<link rel="preconnect" href="https://custom-scale-frontend.highqualitytransfers.com" crossorigin>
-<link rel="dns-prefetch" href="https://custom-scale-frontend.highqualitytransfers.com">
+<link rel="preconnect" href="{{ editor_origin }}" crossorigin>
+<link rel="dns-prefetch" href="{{ editor_origin }}">
 
 {%- comment -%}
   Preload the 6 garment WebPs that Konva will request as soon as the editor mounts.
@@ -116,7 +123,7 @@
   so by the time React renders the previews the images are already in the HTTP cache.
   Route-aware so /uv*-routes preload UV-DTF assets instead of cloth assets.
 {%- endcomment -%}
-{%- assign cdn = 'https://custom-scale-frontend.highqualitytransfers.com/assets' -%}
+{%- assign cdn = editor_origin | append: '/assets' -%}
 {%- assign p = request.path | downcase -%}
 {%- if p contains 'uv' -%}
   <link rel="preload" as="image" href="{{ cdn }}/6-products/bottle.webp" type="image/webp" fetchpriority="high" crossorigin>
@@ -137,28 +144,13 @@
 <!-- Load React app from external CDN (Shopify has 10KB limit for inline JS) -->
 <!-- Module script: required for the chunked build (Konva/Fabric ship as separate chunks). -->
 <!-- Rolling back: drop type="module" and add `defer` if the editor build is reverted to iife. -->
-<link rel="stylesheet" href="{{ block.settings.editor_css_url }}">
-<script type="module" src="{{ block.settings.editor_js_url }}"></script>
+<link rel="stylesheet" href="{{ editor_origin }}/index.css">
+<script type="module" src="{{ editor_origin }}/index.js"></script>
 
 {% schema %}
 {
   "name": "Cloth Editor",
   "target": "section",
-  "settings": [
-    {
-      "type": "text",
-      "id": "editor_js_url",
-      "label": "Editor JS URL",
-      "default": "https://custom-scale-frontend.highqualitytransfers.com/index.js",
-      "info": "URL to the React editor JavaScript bundle"
-    },
-    {
-      "type": "text",
-      "id": "editor_css_url",
-      "label": "Editor CSS URL", 
-      "default": "https://custom-scale-frontend.highqualitytransfers.com/index.css",
-      "info": "URL to the React editor CSS stylesheet"
-    }
-  ]
+  "settings": []
 }
 {% endschema %}
